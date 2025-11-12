@@ -176,7 +176,6 @@ async function initiateDB() {
 
 async function insertDBperCompany(data) {
     return await withOracleDB(async (connection) => {
-        console.log("begin process on " + data["ticker"]);
         let result = await connection.execute(`
             SELECT COUNT(*)
             FROM Exchange
@@ -192,7 +191,6 @@ async function insertDBperCompany(data) {
                 { autoCommit: true }
             );
         }
-        console.log("insert exchange finished" + data["ticker"]);
         result = await connection.execute(`
             INSERT INTO Stock
             VALUES (:1, :2, :3, :4, :5, :6)`,
@@ -202,7 +200,7 @@ async function insertDBperCompany(data) {
         console.log("insert stock finished " + data["ticker"]);
         return result.rowsAffected && result.rowsAffected > 0;
     }).catch((err) => {
-        console.error("Insert company failed: ", err);
+        console.error("Insert failed : ", data["ticker"], err);
         return false;
     });
 }

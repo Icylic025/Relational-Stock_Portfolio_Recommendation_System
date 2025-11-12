@@ -80,12 +80,7 @@ router.post("/initiate-db", async (req, res) => {
 });
 
 router.post("/insert-db", async (req, res) => {
-    let rejected = false;
-    const arr = await initializeWithSP500(appService.insertDBperCompany);
-    arr.forEach((result) => {
-        rejected = (result.status === "rejected");
-    });
-
+    const rejected = await initializeWithSP500(appService.insertDBperCompany);
     if (!rejected) {
         res.json({ success: true });
     } else {

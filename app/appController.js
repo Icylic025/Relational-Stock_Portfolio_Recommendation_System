@@ -1,5 +1,6 @@
 const express = require('express');
 const appService = require('./appService');
+const {initializeWithSP500} = require("./startupScript");
 
 const router = express.Router();
 
@@ -64,5 +65,37 @@ router.get('/count-demotable', async (req, res) => {
     }
 });
 
+router.post("/initiate-db", async (req, res) => {
+    try {
+        const initiateResult = await appService.initiateDB();
+        if (initiateResult) {
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ success: false });
+        }
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+router.post("/insert-db", async (req, res) => {
+    let rejected = false;
+    const arr = await initializeWithSP500(appService.insertDBperCompany);
+    arr.forEach((result) => {
+        rejected = (result.status === "rejected");
+    });
+
+    if (!rejected) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+router.get('/log', async (req, res) => {
+    const tableContent = await appService.logFromDb();
+    res.json({data: tableContent});
+});
 
 module.exports = router;

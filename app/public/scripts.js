@@ -154,6 +154,19 @@ async function countDemotable() {
     }
 }
 
+async function test() {
+    console.log("start");
+    let response = await fetch("/initiate-db", {
+        method: 'POST'
+    });
+    await response.json();
+    console.log("finished initiate");
+    response = await fetch("/insert-db", {
+        method: 'POST'
+    });
+    console.log("finished insert");
+}
+
 
 // ---------------------------------------------------------------
 // Initializes the webpage functionalities.
@@ -164,7 +177,7 @@ window.onload = function() {
     document.getElementById("resetDemotable").addEventListener("click", resetDemotable);
     document.getElementById("insertDemotable").addEventListener("submit", insertDemotable);
     document.getElementById("updataNameDemotable").addEventListener("submit", updateNameDemotable);
-    document.getElementById("countDemotable").addEventListener("click", countDemotable);
+    document.getElementById("countDemotable").addEventListener("click", test);
 };
 
 // General function to refresh the displayed table data. 

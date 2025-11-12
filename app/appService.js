@@ -142,11 +142,88 @@ async function countDemotable() {
     });
 }
 
+async function initiateDB() {
+    return await withOracleDB(async (connection) => {
+        try {
+            await connection.execute('DROP TABLE Stock CASCADE CONSTRAINTS');
+        } catch (err) { console.log('Stock might not exist'); }
+        try {
+            await connection.execute('DROP TABLE Exchange CASCADE CONSTRAINTS');
+        } catch (err) { console.log('Exchange might not exist'); }
+
+        await connection.execute(`
+            CREATE TABLE Exchange(
+                exchange VARCHAR(255) PRIMARY KEY,
+                currency CHAR(3)
+            )`);
+        await connection.execute(`
+            CREATE TABLE Stock(
+                ticker VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255),
+                country VARCHAR(255),
+                industry VARCHAR(255),
+                exchange VARCHAR(255),
+                marketCap FLOAT,
+                FOREIGN KEY (exchange) REFERENCES Exchange(exchange) ON DELETE CASCADE
+            )`);
+        console.log("db initiate finished");
+        return true;
+    }).catch((err) => {
+        console.error("InitiateDB failed: ", err);
+        return false;
+    });
+}
+
+async function insertDBperCompany(data) {
+    return await withOracleDB(async (connection) => {
+        console.log("begin process on " + data["ticker"]);
+        let result = await connection.execute(`
+            SELECT COUNT(*)
+            FROM Exchange
+            WHERE exchange = :1`,
+            [data["exchange"]],
+            { autoCommit: true }
+        );
+        if (result.rows[0][0] === 0) {
+            await connection.execute(`
+                INSERT INTO Exchange
+                VALUES (:1, :2)`,
+                [data["exchange"], data["currency"]],
+                { autoCommit: true }
+            );
+        }
+        console.log("insert exchange finished" + data["ticker"]);
+        result = await connection.execute(`
+            INSERT INTO Stock
+            VALUES (:1, :2, :3, :4, :5, :6)`,
+            [data["ticker"], data["name"], data["country"], data["finnhubIndustry"], data["exchange"], data["marketCapitalization"]],
+            { autoCommit: true }
+        );
+        console.log("insert stock finished " + data["ticker"]);
+        return result.rowsAffected && result.rowsAffected > 0;
+    }).catch((err) => {
+        console.error("Insert company failed: ", err);
+        return false;
+    });
+}
+
+async function logFromDb() {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute('SELECT * FROM Stock');
+        return result.rows;
+    }).catch(() => {
+        return [];
+    });
+}
+
 module.exports = {
     testOracleConnection,
     fetchDemotableFromDb,
-    initiateDemotable, 
-    insertDemotable, 
-    updateNameDemotable, 
-    countDemotable
+    initiateDemotable,
+    insertDemotable,
+    updateNameDemotable,
+    countDemotable,
+    initiateDB,
+    insertDBperCompany,
+    logFromDb
 };

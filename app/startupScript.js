@@ -8,13 +8,28 @@ const {parseFinancialStatementURL} = require("./parseReport");
 dotenv.config({ path: path.resolve(__dirname, './.env') });
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
-const BASE_URL = 'https://finnhub.io/api/v1';
+const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+const ALPHAVANTAGE_API_KEY = process.env.ALPHAVANTAGE_API_KEY;
+const ALPHAVANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
 const WAIT_TIME = 35000; // cooldown time before sending the next batch
+
+// Obtain historical stock price from alphavantage
+async function getHistoricalStockPrice(ticker) {
+    try {
+        const url = `${ALPHAVANTAGE_BASE_URL}?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${ALPHAVANTAGE_API_KEY}`;
+        const response = await axios.get(url);
+        const result = Object.entries(response.data["Time Series (Daily)"]).filter(([date, _]) => new Date(date) >= new Date("2020-01-01"));
+        return {ticker: ticker, data: result};
+    } catch (error) {
+        console.error('AlphaVantage API:', ticker, error.response?.status ?? 'unknown');
+        return null;
+    }
+}
 
 // Obtain 10Q report per company from finnhub
 async function getCompany10Q(ticker) {
     try {
-        const url = `${BASE_URL}/stock/filings?symbol=${ticker}&form=10-Q&token=${FINNHUB_API_KEY}`;
+        const url = `${FINNHUB_BASE_URL}/stock/filings?symbol=${ticker}&form=10-Q&token=${FINNHUB_API_KEY}`;
         const response = await axios.get(url);
         const report = response.data[0];
 
@@ -34,7 +49,7 @@ async function getCompany10Q(ticker) {
 // Obtain company profile from finnhub
 async function getCompanyProfile(ticker) {
     try {
-        const url = `${BASE_URL}/stock/profile2?symbol=${ticker}&token=${FINNHUB_API_KEY}`;
+        const url = `${FINNHUB_BASE_URL}/stock/profile2?symbol=${ticker}&token=${FINNHUB_API_KEY}`;
         const response = await axios.get(url);
         return response.data;
     } catch (error) {
@@ -83,5 +98,6 @@ async function initializeWithSP500(dbFunc, finnhubFunc, chunk) {
 module.exports = {
     initializeWithSP500,
     getCompanyProfile,
-    getCompany10Q
+    getCompany10Q,
+    getHistoricalStockPrice
 };

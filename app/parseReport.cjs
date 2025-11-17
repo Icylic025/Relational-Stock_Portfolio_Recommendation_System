@@ -134,15 +134,3 @@ module.exports = {
     parseFinancialStatementURL
 };
 
-// Unit test illustrating how to use the local and url HTML parser
-// (async () => {
-//     try {
-//         let result = await parseFinancialStatementURL("https://www.sec.gov/Archives/edgar/data/320193/000032019325000073/aapl-20250628.htm#i47143780af9f4d3d85123ce19d9f33bd_13");
-//         console.log(result);
-//         result = await parseFinancialStatementLocal("./example.html");
-//         console.log(result);
-//     } catch (err) {
-//         console.error("Error:", err);
-//     }
-// })();
-

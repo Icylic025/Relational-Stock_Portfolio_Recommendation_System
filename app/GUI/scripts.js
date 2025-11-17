@@ -154,7 +154,7 @@ async function countDemotable() {
     }
 }
 
-async function test() {
+async function initDB() {
     console.log("start");
     let response = await fetch("/initiate-db", {
         method: 'POST'
@@ -202,12 +202,13 @@ async function insertTest(event) {
 // Initializes the webpage functionalities.
 // Add or remove event listeners based on the desired functionalities.
 window.onload = function() {
-    checkDbConnection();
-    fetchTableData();
-    document.getElementById("resetDemotable").addEventListener("click", resetDemotable);
-    document.getElementById("insertDemotable").addEventListener("submit", insertTest);
-    document.getElementById("updataNameDemotable").addEventListener("submit", updateNameDemotable);
-    document.getElementById("countDemotable").addEventListener("click", test);
+    // checkDbConnection();
+    // fetchTableData();
+    // document.getElementById("resetDemotable").addEventListener("click", resetDemotable);
+    // document.getElementById("insertDemotable").addEventListener("submit", insertTest);
+    // document.getElementById("updataNameDemotable").addEventListener("submit", updateNameDemotable);
+    // document.getElementById("countDemotable").addEventListener("click", test);
+    document.getElementById("initDB").addEventListener("click", initDB);
 };
 
 // General function to refresh the displayed table data. 

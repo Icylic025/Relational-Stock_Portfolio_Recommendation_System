@@ -4,7 +4,7 @@ const axios = require("axios");
 
 const dotenv = require("dotenv");
 const path = require("path");
-const {parseFinancialStatementURL} = require("./parseReport");
+const {parseFinancialStatementURL} = require("./parseReport.cjs");
 dotenv.config({ path: path.resolve(__dirname, './.env') });
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;

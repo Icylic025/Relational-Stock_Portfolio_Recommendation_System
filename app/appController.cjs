@@ -117,10 +117,16 @@ router.post("/insert-report", async (req, res) => {
     }
 });
 
+// Specify industry: /menu?industry=tech
 router.get('/menu', async (req, res) => {
     const tableContent = await appService.fetchStock();
     const popular = await appService.fetchPopularStock();
-    res.json({data: tableContent, popular: popular});
+    console.log(req.query.industry);
+    if (req.query.industry) {
+        res.json({data: tableContent, popular: popular, leastPopular: await appService.fetchLeastPopularStock(req.query.industry)});
+    } else {
+        res.json({data: tableContent, popular: popular, leastPopular: []});
+    }
 });
 
 module.exports = router;

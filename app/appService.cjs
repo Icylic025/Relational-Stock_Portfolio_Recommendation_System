@@ -349,6 +349,30 @@ async function fetchPopularStock() {
     });
 }
 
+// For nested query
+// The least popular of an industry is defined as the stock(s) that is hold by least amount of user
+async function fetchLeastPopularStock(industry) {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(`
+            SELECT h.ticker
+            FROM Holds h, Stock s
+            WHERE h.ticker = s.ticker AND s.industry = :1
+            GROUP BY h.ticker
+            HAVING COUNT(*) <= ALL (
+                SELECT COUNT(*)
+                FROM Holds h1, Stock s1
+                WHERE h1.ticker = s1.ticker AND s1.industry = :1
+                GROUP BY h1.ticker
+            )`,
+            [industry]
+        );
+        console.log(result.rows);
+        return result.rows;
+    }).catch(() => {
+        return [];
+    });
+}
+
 // other modules can check to make sure connection is connected before proceeding
 const poolReady = initializeConnectionPool();
 module.exports = {
@@ -365,5 +389,6 @@ module.exports = {
     insertReportPerCompany,
     insertPricePerStock,
     fetchStock,
-    fetchPopularStock
+    fetchPopularStock,
+    fetchLeastPopularStock
 };

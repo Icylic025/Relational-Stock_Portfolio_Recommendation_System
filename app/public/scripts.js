@@ -200,14 +200,16 @@ async function insertTest(event) {
 
 // stub
 let display = true;
+let industry = "Technology";
 
 async function populateMenu() {
     const stockMenu = document.getElementById('stockMenu');
-    const response = await fetch('/menu', { method: 'GET' });
+    const response = await fetch(`/menu?industry=${industry}`, { method: 'GET' });
     const responseData = await response.json();
 
     if (response.ok) {
         const popular = responseData.popular.flat();
+        const leastPopular = responseData.leastPopular.flat();
 
         responseData.data.forEach((symbol) => {
             const btn = document.createElement("button");
@@ -215,6 +217,7 @@ async function populateMenu() {
             btn.textContent = symbol;
 
             if (display && popular.includes(symbol[0])) btn.classList.add("popular");
+            if (display && leastPopular.includes(symbol[0])) btn.classList.add("leastPopular");
 
             btn.addEventListener("click", () => {
                 // stub

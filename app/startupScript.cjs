@@ -16,12 +16,12 @@ const WAIT_TIME = 35000; // cooldown time before sending the next batch
 // Obtain historical stock price from alphavantage
 async function getHistoricalStockPrice(ticker) {
     try {
-        const url = `${ALPHAVANTAGE_BASE_URL}?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${ALPHAVANTAGE_API_KEY}`;
+        const url = `${ALPHAVANTAGE_BASE_URL}?function=TIME_SERIES_DAILY&symbol=${ticker}&apikey=${ALPHAVANTAGE_API_KEY}`;
         const response = await axios.get(url);
-        const result = Object.entries(response.data["Time Series (Daily)"]).filter(([date, _]) => new Date(date) >= new Date("2020-01-01"));
+        const result = Object.entries(response.data["Time Series (Daily)"]);
         return {ticker: ticker, data: result};
     } catch (error) {
-        console.error('AlphaVantage API:', ticker, error.response?.status ?? 'unknown');
+        console.error('AlphaVantage API:', ticker, error);
         return null;
     }
 }
@@ -103,7 +103,7 @@ async function initializeWithSP500(dbFunc, finnhubFunc, chunk) {
             rejected = true;
         }
 
-        // Sleep function to slow down finnhub request so its within rate (rate: 60/min, 30/sec)
+        // Sleep function to slow down finnhub request so its within rate
         const elapsed = Date.now() - startTime;
         const remaining = WAIT_TIME - elapsed;
         if (remaining > 0 && i + chunk < tickers.length) {

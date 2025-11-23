@@ -86,7 +86,7 @@ router.post("/insert-db", async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 65000));
         rejected = await initializeWithSP500(appService.insertReportPerCompany, getCompany10Q, 10);
         if (!rejected) {
-            rejected = await initializeWithSP500(appService.insertPricePerStock, getHistoricalStockPrice, 30);
+            rejected = await initializeWithSP500(appService.insertPricePerStock, getHistoricalStockPrice, 2);
             if (!rejected) res.json({ success: true });
         }
     }

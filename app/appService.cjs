@@ -147,6 +147,12 @@ async function countDemotable() {
 async function initiateDB() {
     return await withOracleDB(async (connection) => {
         try {
+            await connection.execute('DROP TABLE Holds CASCADE CONSTRAINTS');
+        } catch (err) { console.log('Holds might not exist'); }
+        try {
+            await connection.execute('DROP TABLE Users CASCADE CONSTRAINTS');
+        } catch (err) { console.log('Users might not exist'); }
+        try {
             await connection.execute('DROP TABLE PriceHistory CASCADE CONSTRAINTS');
         } catch (err) { console.log('PriceHistory might not exist'); }
         try {
@@ -209,6 +215,21 @@ async function initiateDB() {
                 ticker VARCHAR(255) NOT NULL,
                 FOREIGN KEY (ticker) REFERENCES Stock(ticker) ON DELETE CASCADE,
                 FOREIGN KEY (equity, totalDebt) REFERENCES DebtEquity(equity, totalDebt) ON DELETE CASCADE
+            )`);
+        await connection.execute(`
+            CREATE TABLE Users(
+                email VARCHAR(255) PRIMARY KEY,
+                preferredCountry VARCHAR(255),
+                preferredIndustry VARCHAR(255),
+                displayPopularity NUMBER(1,0)
+            )`);
+        await connection.execute(`
+            CREATE TABLE Holds(
+                email VARCHAR(255),
+                ticker VARCHAR(255),
+                FOREIGN KEY (email) REFERENCES Users(email) ON DELETE CASCADE,
+                FOREIGN KEY (ticker) REFERENCES Stock(ticker) ON DELETE CASCADE,
+                PRIMARY KEY (ticker, email)
             )`);
         console.log("db initiate finished");
         return true;
@@ -298,9 +319,30 @@ async function insertPricePerStock(obj) {
     });
 }
 
-async function logFromDb() {
+async function fetchStock() {
     return await withOracleDB(async (connection) => {
-        const result = await connection.execute('SELECT * FROM Stock');
+        const result = await connection.execute('SELECT ticker FROM Stock ORDER BY ticker');
+        console.log(result.rows);
+        return result.rows;
+    }).catch(() => {
+        return [];
+    });
+}
+
+// For division
+// Popular is defined as select all stock that is hold by all users
+async function fetchPopularStock() {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(`
+            SELECT DISTINCT h.ticker
+            FROM Holds h
+            WHERE NOT EXISTS (
+                (SELECT u.email FROM Users u)
+                MINUS
+                (SELECT h1.email FROM Holds h1 WHERE h1.ticker = h.ticker)
+            )
+        `);
+        console.log(result.rows);
         return result.rows;
     }).catch(() => {
         return [];
@@ -322,5 +364,6 @@ module.exports = {
     insertDBperCompany,
     insertReportPerCompany,
     insertPricePerStock,
-    logFromDb
+    fetchStock,
+    fetchPopularStock
 };

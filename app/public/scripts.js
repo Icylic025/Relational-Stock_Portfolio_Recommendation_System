@@ -198,6 +198,35 @@ async function insertTest(event) {
     }
 }
 
+// stub
+let display = true;
+
+async function populateMenu() {
+    const stockMenu = document.getElementById('stockMenu');
+    const response = await fetch('/menu', { method: 'GET' });
+    const responseData = await response.json();
+
+    if (response.ok) {
+        const popular = responseData.popular.flat();
+
+        responseData.data.forEach((symbol) => {
+            const btn = document.createElement("button");
+            btn.className = "stockButton";
+            btn.textContent = symbol;
+
+            if (display && popular.includes(symbol[0])) btn.classList.add("popular");
+
+            btn.addEventListener("click", () => {
+                // stub
+                console.log("Clicked stock:", symbol);
+            });
+
+            stockMenu.appendChild(btn);
+            stockMenu.appendChild(document.createElement("br"));
+        });
+    }
+}
+
 // ---------------------------------------------------------------
 // Initializes the webpage functionalities.
 // Add or remove event listeners based on the desired functionalities.
@@ -208,7 +237,8 @@ window.onload = function() {
     // document.getElementById("insertDemotable").addEventListener("submit", insertTest);
     // document.getElementById("updataNameDemotable").addEventListener("submit", updateNameDemotable);
     // document.getElementById("countDemotable").addEventListener("click", test);
-    document.getElementById("initDB").addEventListener("click", initDB);
+    //document.getElementById("initDB").addEventListener("click", initDB);
+    populateMenu();
 };
 
 // General function to refresh the displayed table data. 

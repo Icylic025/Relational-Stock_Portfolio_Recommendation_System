@@ -117,9 +117,10 @@ router.post("/insert-report", async (req, res) => {
     }
 });
 
-router.get('/log', async (req, res) => {
-    const tableContent = await appService.logFromDb();
-    res.json({data: tableContent});
+router.get('/menu', async (req, res) => {
+    const tableContent = await appService.fetchStock();
+    const popular = await appService.fetchPopularStock();
+    res.json({data: tableContent, popular: popular});
 });
 
 module.exports = router;

@@ -81,6 +81,7 @@ export async function updatePriceHistory() {
  * Updates dividend data for all stocks from AlphaVantage API
  * Inserts new dividends into Divident and Updates tables
  * Enforces total disjoint ISA constraint at application level
+ * Only processes dividends from the last 30 days to avoid wasting API calls
  */
 export async function updateDividends() {
   await appService.poolReady;
@@ -93,7 +94,14 @@ export async function updateDividends() {
     const tickers = result.rows.map(row => row[0]);
     console.log('Fetching dividends for', tickers.length, 'tickers');
 
+    // Calculate cutoff date (30 days ago)
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 30);
+    console.log(`Only processing dividends after ${cutoffDate.toISOString().split('T')[0]}`);
+
     let totalInserted = 0;
+    let totalSkippedOld = 0;
+    let totalSkippedDuplicate = 0;
 
     for (const ticker of tickers) {
       try {
@@ -118,6 +126,12 @@ export async function updateDividends() {
               continue;
             }
 
+            // Skip dividends older than 30 days
+            if (timestamp < cutoffDate) {
+              totalSkippedOld++;
+              continue;
+            }
+
             // Check if this dividend already exists (by ticker and date)
             const existingCheck = await connection.execute(
               `SELECT d.actionID
@@ -129,6 +143,7 @@ export async function updateDividends() {
 
             if (existingCheck.rows.length > 0) {
               // Dividend already exists, skip
+              totalSkippedDuplicate++;
               continue;
             }
 
@@ -167,7 +182,10 @@ export async function updateDividends() {
     }
 
     await connection.commit();
-    console.log(`Dividend update complete. Inserted ${totalInserted} new dividends.`);
+    console.log(`Dividend update complete.`);
+    console.log(`  - Inserted: ${totalInserted} new dividends`);
+    console.log(`  - Skipped: ${totalSkippedOld} old + ${totalSkippedDuplicate} duplicate = ${totalSkippedOld + totalSkippedDuplicate} total`);
+    console.log(`  - API calls used: ${tickers.length}`);
     return true;
   });
 }
@@ -176,6 +194,7 @@ export async function updateDividends() {
  * Updates stock split data for all stocks from AlphaVantage API
  * Inserts new stock splits into StockSplit and Updates tables
  * Enforces total disjoint ISA constraint at application level
+ * Only processes stock splits from the last 30 days to avoid wasting API calls
  */
 export async function updateStockSplits() {
   await appService.poolReady;
@@ -188,7 +207,14 @@ export async function updateStockSplits() {
     const tickers = result.rows.map(row => row[0]);
     console.log('Fetching stock splits for', tickers.length, 'tickers');
 
+    // Calculate cutoff date (30 days ago)
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 30);
+    console.log(`Only processing stock splits after ${cutoffDate.toISOString().split('T')[0]}`);
+
     let totalInserted = 0;
+    let totalSkippedOld = 0;
+    let totalSkippedDuplicate = 0;
 
     for (const ticker of tickers) {
       try {
@@ -217,6 +243,12 @@ export async function updateStockSplits() {
 
             if (!timestamp || isNaN(splitRatio)) {
               console.warn(`Invalid split data for ${ticker}:`, split);
+              continue;
+            }
+
+            // Skip stock splits older than 30 days
+            if (timestamp < cutoffDate) {
+              totalSkippedOld++;
               continue;
             }
 
@@ -269,7 +301,10 @@ export async function updateStockSplits() {
     }
 
     await connection.commit();
-    console.log(`Stock split update complete. Inserted ${totalInserted} new splits.`);
+    console.log(`Stock split update complete.`);
+    console.log(`  - Inserted: ${totalInserted} new splits`);
+    console.log(`  - Skipped: ${totalSkippedOld} old + ${totalSkippedDuplicate} duplicate = ${totalSkippedOld + totalSkippedDuplicate} total`);
+    console.log(`  - API calls used: ${tickers.length}`);
     return true;
   });
 }

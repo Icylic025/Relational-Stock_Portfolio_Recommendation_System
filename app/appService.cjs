@@ -223,9 +223,6 @@ async function insertReportPerCompany(obj) {
         );
         console.log("insert report finished " + data["ticker"]);
         return result.rowsAffected && result.rowsAffected > 0;
-    }).catch((err) => {
-        console.error("Insert failed : ", err);
-        return false;
     });
 }
 

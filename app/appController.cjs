@@ -46,6 +46,8 @@ router.post("/insert-db", async (req, res) => {
 // 404 means provided accessNum is invalid
 // 422 means error in parsing, requires user assistance
 // 500 means error in DB insertion
+// 501 means error in DB insertion - PK already exist
+// 502 means error in DB insertion - FK does not exist
 router.post("/insert-report", async (req, res) => {
     const { accessNum } = req.body;
     console.log(accessNum);
@@ -54,11 +56,18 @@ router.post("/insert-report", async (req, res) => {
         if (parsedReport.size < 9) {
             res.status(422).json({ success: false, report: Object.fromEntries(parsedReport) });
         } else {
-            const result = await appService.insertReportPerCompany(parsedReport);
-            if (result) {
+            try {
+                await appService.insertReportPerCompany(parsedReport);
                 res.json({ success: true });
-            } else {
-                res.status(500).json({ success: false });
+            } catch (e) {
+                console.error("Insert failed:", e);
+                if (e.errorNum === 1) {
+                    res.status(501).json({ success: false });
+                } else if (e.errorNum === 2291) {
+                    res.status(502).json({ success: false });
+                } else {
+                    res.status(500).json({ success: false });
+                }
             }
         }
     } else {
@@ -68,8 +77,19 @@ router.post("/insert-report", async (req, res) => {
 
 router.post("/insert-report-parsed", async (req, res) => {
     const { report } = req.body;
-    const result = await appService.insertReportPerCompany(report);
-    res.json({ success: result });
+    try {
+        await appService.insertReportPerCompany(report);
+        res.json({ success: true });
+    } catch (e) {
+        console.error("Insert failed:", e);
+        if (e.errorNum === 1) {
+            res.status(501).json({ success: false });
+        } else if (e.errorNum === 2291) {
+            res.status(502).json({ success: false });
+        } else {
+            res.status(500).json({ success: false });
+        }
+    }
 });
 
 // Specify industry: /menu?industry=tech

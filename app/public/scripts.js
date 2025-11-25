@@ -523,8 +523,12 @@ async function handleInsertReport(e) {
                 accessRow.style.display = "none";
                 parsed = responseData.report;
                 renderManualReportFields();
-            } else {
+            } else if (response.status === 501) {
                 error.textContent = "Report with this access number already exists";
+            } else if (response.status === 502) {
+                error.textContent = "The stock for this report is not in the database";
+            } else {
+                error.textContent = "Error inserting report";
             }
         } else {
             error.innerText = "Insert successful!";
@@ -548,11 +552,17 @@ async function handleInsertReport(e) {
 
         if (responseData.success) {
             error.innerText = "Insert successful!";
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            popup.style.display = "none";
         } else {
-            error.textContent = "Report with this access number already exists";
+            if (response.status === 501) {
+                error.textContent = "Report with this access number already exists";
+            } else if (response.status === 502) {
+                error.textContent = "The stock for this report is not in the database";
+            } else {
+                error.textContent = "Error inserting report";
+            }
         }
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        popup.style.display = "none";
     }
 }
 

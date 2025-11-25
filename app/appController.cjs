@@ -80,13 +80,11 @@ router.post("/initiate-db", async (req, res) => {
 });
 
 router.post("/insert-db", async (req, res) => {
-    let rejected = await initializeWithSP500(appService.insertDBperCompany, getCompanyProfile, 30);
+    let rejected = await initializeWithSP500(appService.insertDBperCompany, getCompanyProfile, 2);
     if (!rejected) {
-        console.log(`Waiting 65s before inserting report...`);
-        await new Promise(resolve => setTimeout(resolve, 65000));
-        rejected = await initializeWithSP500(appService.insertReportPerCompany, getCompany10Q, 10);
+        rejected = await initializeWithSP500(appService.insertReportPerCompany, getCompany10Q, 2);
         if (!rejected) {
-            rejected = await initializeWithSP500(appService.insertPricePerStock, getHistoricalStockPrice, 30);
+            rejected = await initializeWithSP500(appService.insertPricePerStock, getHistoricalStockPrice, 2);
             if (!rejected) res.json({ success: true });
         }
     }
@@ -117,9 +115,62 @@ router.post("/insert-report", async (req, res) => {
     }
 });
 
-router.get('/log', async (req, res) => {
-    const tableContent = await appService.logFromDb();
-    res.json({data: tableContent});
+router.post("/insert-report-parsed", async (req, res) => {
+    const { report } = req.body;
+    const result = await appService.insertReportPerCompany(parsedReport);
+    res.json({ success: result });
+});
+
+// Specify industry: /menu?industry=tech
+router.get('/menu', async (req, res) => {
+    const tableContent = await appService.fetchAllStock();
+    const popular = await appService.fetchPopularStock();
+    if (req.query.industry) {
+        res.json({data: tableContent, popular: popular, leastPopular: await appService.fetchLeastPopularStock(req.query.industry)});
+    } else {
+        res.json({data: tableContent, popular: popular, leastPopular: []});
+    }
+});
+
+router.post("/query", async (req, res) => {
+    const { where } = req.body;
+    console.log(where);
+    res.json({data: await appService.filterStock(where)});
+});
+
+router.get('/setting-dropdown', async (req, res) => {
+    res.json({industry: await appService.fetchSettingDropdown("industry"), exchange: await appService.fetchSettingDropdown("exchange")});
+});
+
+router.post('/user', async (req, res) => {
+    const { email } = req.body;
+    res.json({data: await appService.fetchUser(email)});
+});
+
+router.put('/user', async (req, res) => {
+    const { email, industry, exchange, rec } = req.body;
+    const result = await appService.updateUser(email, industry, exchange, rec);
+    if (result) {
+        res.json({ success: true });
+    } else {
+        res.status(500).json({ success: false });
+    }
+});
+
+router.get('/holding', async (req, res) => {
+    const result = await appService.verifyHolding(req.query.email, req.query.ticker);
+    res.json({ exist: result });
+});
+
+router.put('/holding', async (req, res) => {
+    const { email, ticker, add } = req.body;
+    let result = false;
+    if (add) {
+        result = await appService.addHolding(email, ticker);
+    } else {
+        result = await appService.delHolding(email, ticker);
+    }
+    res.json({ success: result });
 });
 
 // Get all stocks held by a specific user

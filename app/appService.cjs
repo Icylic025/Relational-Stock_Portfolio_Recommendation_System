@@ -167,6 +167,12 @@ async function countDemotable() {
 async function initiateDB() {
     return await withOracleDB(async (connection) => {
         try {
+            await connection.execute('DROP TABLE Holds CASCADE CONSTRAINTS');
+        } catch (err) { console.log('Holds might not exist'); }
+        try {
+            await connection.execute('DROP TABLE Users CASCADE CONSTRAINTS');
+        } catch (err) { console.log('Users might not exist'); }
+        try {
             await connection.execute('DROP TABLE PriceHistory CASCADE CONSTRAINTS');
         } catch (err) { console.log('PriceHistory might not exist'); }
         try {
@@ -229,6 +235,22 @@ async function initiateDB() {
                 ticker VARCHAR(255) NOT NULL,
                 FOREIGN KEY (ticker) REFERENCES Stock(ticker) ON DELETE CASCADE,
                 FOREIGN KEY (equity, totalDebt) REFERENCES DebtEquity(equity, totalDebt) ON DELETE CASCADE
+            )`);
+        await connection.execute(`
+            CREATE TABLE Users(
+                email VARCHAR(255) PRIMARY KEY,
+                preferredIndustry VARCHAR(255),
+                preferredExchange VARCHAR(255),
+                showRecommendation NUMBER(1,0),
+                FOREIGN KEY (preferredExchange) REFERENCES Exchange(exchange) ON DELETE CASCADE
+            )`);
+        await connection.execute(`
+            CREATE TABLE Holds(
+                email VARCHAR(255),
+                ticker VARCHAR(255),
+                FOREIGN KEY (email) REFERENCES Users(email) ON DELETE CASCADE,
+                FOREIGN KEY (ticker) REFERENCES Stock(ticker) ON DELETE CASCADE,
+                PRIMARY KEY (ticker, email)
             )`);
         console.log("db initiate finished");
         return true;
@@ -318,74 +340,161 @@ async function insertPricePerStock(obj) {
     });
 }
 
-async function logFromDb() {
+async function fetchSettingDropdown(type) {
     return await withOracleDB(async (connection) => {
-        const result = await connection.execute('SELECT * FROM Stock');
+        const result = await connection.execute(`SELECT ${type}, COUNT(*) FROM Stock GROUP BY ${type}`);
+        console.log(result.rows);
         return result.rows;
     }).catch(() => {
         return [];
     });
 }
 
-// Get all stocks held by a specific user (from Holds table)
-async function getUserHeldStocks(email) {
+async function fetchUser(email) {
     return await withOracleDB(async (connection) => {
-        const result = await connection.execute(
-            `SELECT h.ticker, s.name
-             FROM Holds h
-             JOIN Stock s ON h.ticker = s.ticker
-             WHERE h.email = :email
-             ORDER BY s.ticker`,
+        const result = await connection.execute(`
+            SELECT * FROM Users WHERE email = :1`,
             [email]
         );
-        return result.rows.map(row => ({ ticker: row[0], name: row[1] }));
-    }).catch((err) => {
-        console.error('Error in getUserHeldStocks:', err);
+        if (result.rows.length === 0) {
+            await connection.execute(`
+                INSERT INTO Users
+                VALUES (:1, :2, :3, :4)`,
+                [email, null, null, 0],
+                { autoCommit: true }
+            );
+            return [];
+        } else {
+            return result.rows;
+        }
+    }).catch(() => {
         return [];
     });
 }
 
-// Get price history for a specific stock ticker
-async function getPriceHistory(ticker) {
+async function updateUser(email, industry, exchange, rec) {
     return await withOracleDB(async (connection) => {
         const result = await connection.execute(
-            `SELECT timestamp, openPrice, highPrice, lowPrice, closePrice, volume
-             FROM PriceHistory
-             WHERE ticker = :ticker
-             ORDER BY timestamp ASC`,
-            [ticker]
+            `UPDATE Users 
+             SET preferredIndustry = :industry, preferredExchange = :exchange, showRecommendation = :rec
+             WHERE email = :email`,
+            {
+                email,
+                industry: industry || null,
+                exchange: exchange || null,
+                rec
+            },
+            { autoCommit: true }
         );
-        return result.rows.map(row => ({
-            date: row[0],
-            open: row[1],
-            high: row[2],
-            low: row[3],
-            close: row[4],
-            volume: row[5]
-        }));
-    }).catch((err) => {
-        console.error('Error in getPriceHistory:', err);
+        return result.rowsAffected && result.rowsAffected > 0;
+    }).catch(() => {
+        return false;
+    });
+}
+
+async function fetchAllStock() {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute('SELECT * FROM Stock ORDER BY ticker');
+        console.log(result.rows);
+        return result.rows;
+    }).catch(() => {
         return [];
     });
 }
 
-// Get all available stocks
-async function getAllStocks() {
+async function filterStock(where) {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(`SELECT * FROM Stock WHERE ${where}`);
+        console.log(result.rows);
+        return result.rows;
+    }).catch(() => {
+        return [];
+    });
+}
+
+// For division
+// Popular is defined as select all stock that is hold by all users
+async function fetchPopularStock() {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(`
+            SELECT DISTINCT h.ticker
+            FROM Holds h
+            WHERE NOT EXISTS (
+                (SELECT u.email FROM Users u)
+                MINUS
+                (SELECT h1.email FROM Holds h1 WHERE h1.ticker = h.ticker)
+            )
+        `);
+        console.log(result.rows);
+        return result.rows;
+    }).catch(() => {
+        return [];
+    });
+}
+
+// For nested query
+// The least popular of an industry is defined as the stock(s) that is hold by least amount of user
+async function fetchLeastPopularStock(industry) {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(`
+            SELECT h.ticker
+            FROM Holds h, Stock s
+            WHERE h.ticker = s.ticker AND s.industry = :1
+            GROUP BY h.ticker
+            HAVING COUNT(*) <= ALL (
+                SELECT COUNT(*)
+                FROM Holds h1, Stock s1
+                WHERE h1.ticker = s1.ticker AND s1.industry = :1
+                GROUP BY h1.ticker
+            )`,
+            [industry]
+        );
+        console.log(result.rows);
+        return result.rows;
+    }).catch(() => {
+        return [];
+    });
+}
+
+async function verifyHolding(email, ticker) {
     return await withOracleDB(async (connection) => {
         const result = await connection.execute(
-            `SELECT ticker, name, exchange, industry
-             FROM Stock
-             ORDER BY ticker`
+            `SELECT * FROM Holds WHERE email = :email AND ticker = :ticker`,
+            {email, ticker}
         );
-        return result.rows.map(row => ({
-            ticker: row[0],
-            name: row[1],
-            exchange: row[2],
-            industry: row[3]
-        }));
-    }).catch((err) => {
-        console.error('Error in getAllStocks:', err);
-        return [];
+        const exists = result.rows && result.rows.length > 0;
+        console.log('verifyHolding exists:', exists, 'rows:', result.rows);
+        return exists;
+    }).catch(() => {
+        return false;
+    });
+}
+
+async function addHolding(email, ticker) {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(`
+            INSERT INTO Holds
+            VALUES (:1, :2)`,
+            [email, ticker],
+            { autoCommit: true }
+        );
+        return result.rowsAffected && result.rowsAffected > 0;
+    }).catch(() => {
+        return false;
+    });
+}
+
+async function delHolding(email, ticker) {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(`
+            DELETE FROM Holds
+            WHERE email = :1 AND ticker = :2`,
+            [email, ticker],
+            { autoCommit: true }
+        );
+        return result.rowsAffected && result.rowsAffected > 0;
+    }).catch(() => {
+        return false;
     });
 }
 
@@ -404,8 +513,14 @@ module.exports = {
     insertDBperCompany,
     insertReportPerCompany,
     insertPricePerStock,
-    logFromDb,
-    getUserHeldStocks,
-    getPriceHistory,
-    getAllStocks
+    fetchUser,
+    updateUser,
+    fetchSettingDropdown,
+    fetchAllStock,
+    filterStock,
+    fetchPopularStock,
+    fetchLeastPopularStock,
+    verifyHolding,
+    addHolding,
+    delHolding
 };

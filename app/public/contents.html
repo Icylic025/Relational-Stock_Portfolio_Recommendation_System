@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- This meta tag ensures that the website renders correctly across different device sizes, enhancing mobile responsiveness. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Link to the external CSS stylesheet. Uncomment if you wish to customize or add styling. -->
+    <link rel="stylesheet" href="styles.css">  
+<!--    <button id="initDB">initialize</button>-->
+    <title>Database Application content</title>
+</head>
+<body class="moecontents">
+    <div id="searchBar">
+        <select id="stockAttribute">
+            <option value="ticker">Ticker</option>
+            <option value="name">Name</option>
+            <option value="country">Country</option>
+            <option value="industry">Industry</option>
+            <option value="exchange">Exchange</option>
+        </select>
+
+        <input type="text" id="val" placeholder="Enter filter..."/>
+
+        <select id="comparitor" disabled>
+            <option value="" disabled selected> </option>
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+        </select>
+
+        <button id="clearFilter" style="width: 80px; margin-left: 10px;">Clear</button>
+
+        <button id="userSetting" style="width: 80px; margin-left: 10px;">Login</button>
+    </div>
+
+    <div style="position: absolute;">
+        <div id="filterResult"></div>
+    </div>
+
+    <div style="position: absolute;">
+        <div id="userSettingPopup" class="popup" style="display: none;">
+            <form id="settingsForm">
+                <div class="form-row">
+                    <h2>User Settings</h2>
+                </div>
+
+                <div class="form-row">
+                    <label for="settingEmail">Email</label>
+                    <input type="text" id="settingEmail" style="padding: 0px; margin: 0px;"/>
+                </div>
+
+                <div class="form-row" style="display: none;">
+                    <label for="settingIndustry">Preferred Industry</label>
+                    <select id="settingIndustry">
+                        <option value="" selected> </option>
+                    </select>
+                    <span id="industryTickers"></span>
+                </div>
+
+                <div class="form-row" style="display: none;">
+                    <label for="settingExchange">Preferred Exchange</label>
+                    <select id="settingExchange">
+                        <option value="" selected> </option>
+                    </select>
+                    <span id="exchangeTickers"></span>
+                </div>
+
+                <div class="form-row" style="display: none;">
+                    <label for="settingRec"> Show recommendations</label>
+                    <input type="checkbox" id="settingRec"/>
+                </div>
+
+                <div id="settingMessage"></div>
+
+                <div>
+                    <button type="button" id="settingCancel">Cancel</button>
+                    <button type="submit" id="settingSubmit">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="selectedStock" style="padding-left: 10px"></div>
+
+    <img src="../sample image.jpg" class=imgcenter>
+
+    <!-- buy, sell, hold  OR  rate 0~7 -->
+    Recommendation: <div id="recommendation"></div> <br>
+
+    <div id="insertReportPopup" class="popup" style="display: none; position: fixed; bottom: 70px; left: 10px; transform: translate(0%, 0%)">
+        <form id="insertReportForm">
+            <div class="form-row">
+                <h2 style="margin-bottom: 0px">Insert Report</h2>
+            </div>
+
+            <div class="form-row" id="accessNumRow">
+                <label for="accessNum">Report access number</label>
+                <input type="text" id="accessNum" style="padding: 0px; margin: 0px;"/>
+            </div>
+
+            <div id="errorMessage"></div>
+
+            <div>
+                <button type="button" id="reportCancel">Cancel</button>
+                <button type="submit" id="reportSubmit">Submit</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="btnWrapper">
+        <button id="insertButton" style="width: 140px" hidden>Insert Report</button>
+        <button id="holdButton" disabled hidden data-tooltip="Please login">Hold</button>
+    </div>
+
+
+    <!-- ===================================================================================== -->
+    <!-- External JavaScript file that contains the functionality/logic for the operations above. -->
+    <script src="scripts.js"></script>
+</body>
+</html>

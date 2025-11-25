@@ -11,24 +11,11 @@
     <!-- Chart.js for price history graph -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <title>Database Application content</title>
+    <title>Database Application menu</title>
 </head>
-<body class="moecontents">
-
-    <button id="initDB"> initiate </button> <br>
-    <form id="searchBar">
-        <input type="text" id="enterSearch" placeholder="Search...">
-        <img src="../sample avatar.jpg" width=7% height=7% align="right"><br>
-    </form>
-
-    <!-- Stock Price History Chart -->
-    <h3 id="chartTitle" style="text-align: center;">Portfolio Price History</h3>
-    <canvas id="priceChart"></canvas>
-    <p id="chartMessage" style="text-align: center; margin-top: 10px;">Please login to view your portfolio</p>
-
-    <img src="../sample image.jpg" class=imgcenter>
-    <!-- buy, sell, hold  OR  rate 0~7 -->
-    Recommendation: <div id="recommendation"></div> <br>
+<body class="moemenu">
+    <h2 class="menuHeader">Stock tickers</h2>
+    <div id="stockMenu"></div>
 
     <!-- ===================================================================================== -->
     <!-- External JavaScript file that contains the functionality/logic for the operations above. -->

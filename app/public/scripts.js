@@ -53,8 +53,15 @@ let selectedTickerFull = [];
 function handleStockSelection(symbol) {
     selectedTicker = symbol[0];
     selectedTickerFull = symbol;
+
+    // Hide the duration filter and show the back button
+    const portfolioControls = document.getElementById("portfolioControls");
+    if (portfolioControls) {
+        portfolioControls.innerHTML = '<button id="clearStockSelection" style="padding: 8px 20px; font-size: 14px;">Back to Portfolio</button>';
+    }
+
     const container = document.getElementById("selectedStock");
-    container.innerHTML = '<button id="clearStockSelection" style="width: 180px; display: block; margin: 10px;">Back to Portfolio</button>';
+    container.innerHTML = '';
 
     //////////////////////////// Render stock attributes here //////////////////////////////////////
     renderTitleRow(container);
@@ -80,10 +87,32 @@ function clearStockSelection() {
     selectedTicker = "";
     selectedTickerFull = [];
     selectedStock = null;
-    const container = document.getElementById("selectedStock");
-    container.innerHTML = '<button id="clearStockSelection" style="width: 180px; display: none; margin: 10px;">Back to Portfolio</button>';
 
-    // Return to portfolio view
+    // Clear stock details
+    const container = document.getElementById("selectedStock");
+    container.innerHTML = '';
+
+    // Show the duration filter again and hide the back button
+    const portfolioControls = document.getElementById("portfolioControls");
+    if (portfolioControls) {
+        portfolioControls.innerHTML = `
+            <div id="holdingDurationFilter">
+                <label for="durationSelect" style="margin-right: 10px; font-weight: bold;">Filter by holding duration:</label>
+                <select id="durationSelect" style="padding: 5px 10px;">
+                    <option value="" selected>All holdings (no filter)</option>
+                    <option value="day">Held at least 1 day</option>
+                    <option value="week">Held at least 1 week</option>
+                    <option value="month">Held at least 1 month</option>
+                    <option value="year">Held at least 1 year</option>
+                </select>
+            </div>
+        `;
+
+        // Re-add the event listener for the newly created dropdown
+        addHoldingDurationFilterListener();
+    }
+
+    // Return to portfolio view (no filter initially)
     if (currentUserEmail) {
         updateChartForPortfolio();
     }
@@ -464,6 +493,7 @@ function addHoldListener() {
     });
 
     btn.addEventListener('click', async() => {
+        const action = btn.textContent === "Hold" ? "added to" : "removed from";
         const response = await fetch('/holding', {
             method: 'PUT',
             headers: {
@@ -476,11 +506,19 @@ function addHoldListener() {
             })
         });
         await refreshMenu();
-        handleStockSelection(selectedTickerFull);
 
-        // If no stock is selected, refresh the portfolio graph
-        if (!selectedTicker && currentUserEmail) {
-            updateChartForPortfolio();
+        // Navigate back to portfolio to see updated holdings in the overlaid graph
+        clearStockSelection();
+
+        // Show a brief confirmation message
+        const chartMessage = document.getElementById('chartMessage');
+        if (chartMessage) {
+            chartMessage.textContent = `${selectedTicker} ${action} your portfolio`;
+            setTimeout(() => {
+                if (chartMessage.textContent === `${selectedTicker} ${action} your portfolio`) {
+                    chartMessage.textContent = '';
+                }
+            }, 3000);
         }
     });
 }
@@ -637,9 +675,10 @@ function validateReportFields() {
 //////////////////////////// Stock Graph Functions //////////////////////////////////////
 
 // Update chart to show portfolio (all held stocks)
-async function updateChartForPortfolio() {
+async function updateChartForPortfolio(durationFilter = null) {
     const chartMessage = document.getElementById('chartMessage');
     const chartTitle = document.getElementById('chartTitle');
+
 
     if (!currentUserEmail) {
         if (chartMessage) chartMessage.textContent = 'Please login to view your portfolio';
@@ -651,13 +690,32 @@ async function updateChartForPortfolio() {
     }
 
     try {
-        // Get user's held stocks
-        const response = await fetch(`/user-held-stocks/${encodeURIComponent(currentUserEmail)}`);
-        const data = await response.json();
+        // Get user's held stocks - either filtered by duration or all
+        let response, data;
+        if (durationFilter) {
+            const url = `/user-held-stocks/${encodeURIComponent(currentUserEmail)}/duration/${durationFilter}`;
+           // console.log("Fetching filtered stocks from:", url);
+            response = await fetch(url);
+        } else {
+            const url = `/user-held-stocks/${encodeURIComponent(currentUserEmail)}`;
+            // console.log("Fetching all stocks from:", url);
+            response = await fetch(url);
+        }
+        data = await response.json();
+        // console.log("Received data:", data);
 
         if (!data.success || data.data.length === 0) {
-            if (chartMessage) chartMessage.textContent = 'You do not hold any stocks';
-            if (chartTitle) chartTitle.textContent = 'Portfolio Price History';
+            const filterText = durationFilter ? ` matching the selected duration filter` : '';
+            if (chartMessage) chartMessage.textContent = `You do not hold any stocks${filterText}`;
+            if (chartTitle) {
+                const durationLabels = {
+                    'day': ' (Held >= 1 day)',
+                    'week': ' (Held >= 1 week)',
+                    'month': ' (Held >= 1 month)',
+                    'year': ' (Held >= 1 year)'
+                };
+                chartTitle.textContent = `Portfolio Price History${durationFilter ? durationLabels[durationFilter] : ''}`;
+            }
             if (priceChart) {
                 priceChart.destroy();
                 priceChart = null;
@@ -689,7 +747,16 @@ async function updateChartForPortfolio() {
             }
         });
 
-        if (chartTitle) chartTitle.textContent = 'Portfolio Price History';
+        // Update title based on filter
+        if (chartTitle) {
+            const durationLabels = {
+                'day': ' (Held >= 1 day)',
+                'week': ' (Held >= 1 week)',
+                'month': ' (Held >= 1 month)',
+                'year': ' (Held >= 1 year)'
+            };
+            chartTitle.textContent = `Portfolio Price History${durationFilter ? durationLabels[durationFilter] : ''}`;
+        }
         if (chartMessage) chartMessage.textContent = '';
         renderChart(datasets);
 
@@ -817,6 +884,36 @@ function onUserLogout() {
     if (chartMessage) chartMessage.textContent = 'Please login to view your portfolio';
 }
 
+//////////////////////////// Holding Duration Filter Logic //////////////////////////////////////
+function addHoldingDurationFilterListener() {
+    const durationSelect = document.getElementById("durationSelect");
+    if (!durationSelect) return;
+
+    durationSelect.addEventListener("change", () => {
+        const duration = durationSelect.value;
+
+        /*
+        console.log("Duration filter changed to:", duration);
+        console.log("currentUserEmail:", currentUserEmail);
+        console.log("selectedStock:", selectedStock);
+        console.log("selectedTicker:", selectedTicker);
+        */
+       
+        // Only update chart if user is logged in and not viewing a specific stock
+        if (currentUserEmail && !selectedTicker) {
+            console.log("Updating chart with duration:", duration);
+            if (duration) {
+                updateChartForPortfolio(duration);
+            } else {
+                // If empty value selected, show all holdings
+                updateChartForPortfolio();
+            }
+        } else {
+            console.log("Not updating chart - conditions not met");
+        }
+    });
+}
+
 // ---------------------------------------------------------------
 // Initializes the webpage functionalities.
 // Add or remove event listeners based on the desired functionalities.
@@ -827,4 +924,5 @@ window.onload = function() {
     addSettingListener();
     addHoldListener();
     addInsertReportListener();
+    addHoldingDurationFilterListener();
 };

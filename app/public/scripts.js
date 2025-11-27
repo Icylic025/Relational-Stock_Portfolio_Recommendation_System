@@ -652,6 +652,7 @@ async function updateChartForPortfolio(durationFilter = null) {
     const chartMessage = document.getElementById('chartMessage');
     const chartTitle = document.getElementById('chartTitle');
 
+
     if (!currentUserEmail) {
         if (chartMessage) chartMessage.textContent = 'Please login to view your portfolio';
         if (priceChart) {
@@ -665,21 +666,26 @@ async function updateChartForPortfolio(durationFilter = null) {
         // Get user's held stocks - either filtered by duration or all
         let response, data;
         if (durationFilter) {
-            response = await fetch(`/user-held-stocks/${encodeURIComponent(currentUserEmail)}/duration/${durationFilter}`);
+            const url = `/user-held-stocks/${encodeURIComponent(currentUserEmail)}/duration/${durationFilter}`;
+           // console.log("Fetching filtered stocks from:", url);
+            response = await fetch(url);
         } else {
-            response = await fetch(`/user-held-stocks/${encodeURIComponent(currentUserEmail)}`);
+            const url = `/user-held-stocks/${encodeURIComponent(currentUserEmail)}`;
+            // console.log("Fetching all stocks from:", url);
+            response = await fetch(url);
         }
         data = await response.json();
+        // console.log("Received data:", data);
 
         if (!data.success || data.data.length === 0) {
             const filterText = durationFilter ? ` matching the selected duration filter` : '';
             if (chartMessage) chartMessage.textContent = `You do not hold any stocks${filterText}`;
             if (chartTitle) {
                 const durationLabels = {
-                    'day': ' (< 1 day)',
-                    'week': ' (< 1 week)',
-                    'month': ' (< 1 month)',
-                    'year': ' (< 1 year)'
+                    'day': ' (Held >= 1 day)',
+                    'week': ' (Held >= 1 week)',
+                    'month': ' (Held >= 1 month)',
+                    'year': ' (Held >= 1 year)'
                 };
                 chartTitle.textContent = `Portfolio Price History${durationFilter ? durationLabels[durationFilter] : ''}`;
             }
@@ -717,10 +723,10 @@ async function updateChartForPortfolio(durationFilter = null) {
         // Update title based on filter
         if (chartTitle) {
             const durationLabels = {
-                'day': ' (Held < 1 day)',
-                'week': ' (Held < 1 week)',
-                'month': ' (Held < 1 month)',
-                'year': ' (Held < 1 year)'
+                'day': ' (Held >= 1 day)',
+                'week': ' (Held >= 1 week)',
+                'month': ' (Held >= 1 month)',
+                'year': ' (Held >= 1 year)'
             };
             chartTitle.textContent = `Portfolio Price History${durationFilter ? durationLabels[durationFilter] : ''}`;
         }
@@ -859,14 +865,24 @@ function addHoldingDurationFilterListener() {
     durationSelect.addEventListener("change", () => {
         const duration = durationSelect.value;
 
+        /*
+        console.log("Duration filter changed to:", duration);
+        console.log("currentUserEmail:", currentUserEmail);
+        console.log("selectedStock:", selectedStock);
+        console.log("selectedTicker:", selectedTicker);
+        */
+       
         // Only update chart if user is logged in and not viewing a specific stock
-        if (currentUserEmail && !selectedStock) {
+        if (currentUserEmail && !selectedTicker) {
+            console.log("Updating chart with duration:", duration);
             if (duration) {
                 updateChartForPortfolio(duration);
             } else {
                 // If empty value selected, show all holdings
                 updateChartForPortfolio();
             }
+        } else {
+            console.log("Not updating chart - conditions not met");
         }
     });
 }

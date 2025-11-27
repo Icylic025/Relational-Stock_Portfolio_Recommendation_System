@@ -567,7 +567,7 @@ async function getAllStocks() {
 }
 
 // Get stocks filtered by holding duration using HAVING clause
-// durationFilter: 'day' (< 1 day), 'week' (< 1 week), 'month' (< 1 month), 'year' (< 1 year)
+// durationFilter: 'day' (>= 1 day), 'week' (>= 1 week), 'month' (>= 1 month), 'year' (>= 1 year)
 async function getStocksByHoldingDuration(durationFilter) {
     return await withOracleDB(async (connection) => {
         let durationDays;
@@ -594,7 +594,7 @@ async function getStocksByHoldingDuration(durationFilter) {
             FROM Holds h
             JOIN Stock s ON h.ticker = s.ticker
             GROUP BY h.ticker, s.name
-            HAVING AVG(SYSDATE - h.holdTime) < :1
+            HAVING AVG(SYSDATE - h.holdTime) >= :1
             ORDER BY avgHoldDays DESC`,
             [durationDays]
         );
@@ -639,7 +639,7 @@ async function getUserHeldStocksByDuration(email, durationFilter) {
             JOIN Stock s ON h.ticker = s.ticker
             WHERE h.email = :1
             GROUP BY h.ticker, s.name, h.holdTime
-            HAVING (SYSDATE - h.holdTime) < :2
+            HAVING (SYSDATE - h.holdTime) >= :2
             ORDER BY holdDays DESC`,
             [email, durationDays]
         );

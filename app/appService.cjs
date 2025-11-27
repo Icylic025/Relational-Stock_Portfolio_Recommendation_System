@@ -12,16 +12,37 @@ const dbConfig = {
     poolMin: 1,
     poolMax: 3,
     poolIncrement: 1,
-    poolTimeout: 60
+    poolTimeout: 60,
+    transportConnectTimeout: 60  // Increase connection timeout from default 20s to 60s
 };
+
+// Debug: Log connection details (password masked)
+console.log('=== Database Configuration Debug ===');
+console.log('  User:', dbConfig.user);
+console.log('  User type:', typeof dbConfig.user);
+console.log('  User length:', dbConfig.user ? dbConfig.user.length : 0);
+console.log('  User has whitespace?', dbConfig.user !== dbConfig.user.trim());
+console.log('  Password:', dbConfig.password ? '*'.repeat(dbConfig.password.length) : 'NOT SET');
+console.log('  Password type:', typeof dbConfig.password);
+console.log('  Password length:', dbConfig.password ? dbConfig.password.length : 0);
+console.log('  Password has whitespace?', dbConfig.password !== dbConfig.password.trim());
+console.log('  Connect String:', dbConfig.connectString);
+console.log('  Full config keys:', Object.keys(dbConfig));
+console.log('=====================================');
 
 // initialize connection pool
 async function initializeConnectionPool() {
     try {
+        console.log('Attempting to create Oracle connection pool...');
         await oracledb.createPool(dbConfig);
-        console.log('Connection pool started');
+        console.log('Connection pool started successfully');
     } catch (err) {
-        console.error('Initialization error: ' + err.message);
+        console.error('=== Connection Pool Initialization Failed ===');
+        console.error('Error message:', err.message);
+        console.error('Error code:', err.code);
+        console.error('Error details:', err);
+        console.error('==========================================');
+        throw err;
     }
 }
 
@@ -404,8 +425,10 @@ async function addHolding(email, ticker) {
             [email, ticker],
             { autoCommit: true }
         );
+        console.log('addHolding result:', result.rowsAffected, 'for email:', email, 'ticker:', ticker);
         return result.rowsAffected && result.rowsAffected > 0;
-    }).catch(() => {
+    }).catch((err) => {
+        console.error('Error in addHolding:', err);
         return false;
     });
 }
@@ -418,9 +441,162 @@ async function delHolding(email, ticker) {
             [email, ticker],
             { autoCommit: true }
         );
+        console.log('delHolding result:', result.rowsAffected, 'for email:', email, 'ticker:', ticker);
         return result.rowsAffected && result.rowsAffected > 0;
-    }).catch(() => {
+    }).catch((err) => {
+        console.error('Error in delHolding:', err);
         return false;
+    });
+}
+
+// Get all stocks held by a specific user (from Holds table)
+async function getUserHeldStocks(email) {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(
+            `SELECT h.ticker, s.name
+             FROM Holds h
+             JOIN Stock s ON h.ticker = s.ticker
+             WHERE h.email = :email
+             ORDER BY s.ticker`,
+            [email]
+        );
+        return result.rows.map(row => ({ ticker: row[0], name: row[1] }));
+    }).catch((err) => {
+        console.error('Error in getUserHeldStocks:', err);
+        return [];
+    });
+}
+
+// Get price history for a specific stock ticker
+async function getPriceHistory(ticker) {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(
+            `SELECT timestamp, openPrice, highPrice, lowPrice, closePrice, volume
+             FROM PriceHistory
+             WHERE ticker = :ticker
+             ORDER BY timestamp ASC`,
+            [ticker]
+        );
+        return result.rows.map(row => ({
+            date: row[0],
+            open: row[1],
+            high: row[2],
+            low: row[3],
+            close: row[4],
+            volume: row[5]
+        }));
+    }).catch((err) => {
+        console.error('Error in getPriceHistory:', err);
+        return [];
+    });
+}
+
+// Get all available stocks
+async function getAllStocks() {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(
+            `SELECT ticker, name, exchange, industry
+             FROM Stock
+             ORDER BY ticker`
+        );
+        return result.rows.map(row => ({
+            ticker: row[0],
+            name: row[1],
+            exchange: row[2],
+            industry: row[3]
+        }));
+    }).catch((err) => {
+        console.error('Error in getAllStocks:', err);
+        return [];
+    });
+}
+
+// Get stocks filtered by holding duration using HAVING clause
+// durationFilter: 'day' (>= 1 day), 'week' (>= 1 week), 'month' (>= 1 month), 'year' (>= 1 year)
+async function getStocksByHoldingDuration(durationFilter) {
+    return await withOracleDB(async (connection) => {
+        let durationDays;
+        switch(durationFilter) {
+            case 'day':
+                durationDays = 1;
+                break;
+            case 'week':
+                durationDays = 7;
+                break;
+            case 'month':
+                durationDays = 30;
+                break;
+            case 'year':
+                durationDays = 365;
+                break;
+            default:
+                return [];
+        }
+
+        const result = await connection.execute(`
+            SELECT h.ticker, s.name, COUNT(*) as userCount,
+                   ROUND(AVG(SYSDATE - h.holdTime), 2) as avgHoldDays
+            FROM Holds h
+            JOIN Stock s ON h.ticker = s.ticker
+            GROUP BY h.ticker, s.name
+            HAVING AVG(SYSDATE - h.holdTime) >= :1
+            ORDER BY avgHoldDays DESC`,
+            [durationDays]
+        );
+
+        return result.rows.map(row => ({
+            ticker: row[0],
+            name: row[1],
+            userCount: row[2],
+            avgHoldDays: row[3]
+        }));
+    }).catch((err) => {
+        console.error('Error in getStocksByHoldingDuration:', err);
+        return [];
+    });
+}
+
+// Get user's held stocks filtered by holding duration using HAVING clause
+// This function filters stocks held by a specific user based on how long they've held them
+async function getUserHeldStocksByDuration(email, durationFilter) {
+    return await withOracleDB(async (connection) => {
+        let durationDays;
+        switch(durationFilter) {
+            case 'day':
+                durationDays = 1;
+                break;
+            case 'week':
+                durationDays = 7;
+                break;
+            case 'month':
+                durationDays = 30;
+                break;
+            case 'year':
+                durationDays = 365;
+                break;
+            default:
+                return [];
+        }
+
+        const result = await connection.execute(`
+            SELECT h.ticker, s.name, ROUND(SYSDATE - h.holdTime, 2) as holdDays
+            FROM Holds h
+            JOIN Stock s ON h.ticker = s.ticker
+            WHERE h.email = :1
+            GROUP BY h.ticker, s.name, h.holdTime
+            HAVING (SYSDATE - h.holdTime) >= :2
+            ORDER BY holdDays DESC`,
+            [email, durationDays]
+        );
+
+        return result.rows.map(row => ({
+            ticker: row[0],
+            name: row[1],
+            holdDays: row[2]
+        }));
+    }).catch((err) => {
+        console.error('Error in getUserHeldStocksByDuration:', err);
+        return [];
     });
 }
 
@@ -462,5 +638,10 @@ module.exports = {
     verifyHolding,
     addHolding,
     delHolding,
+    getUserHeldStocks,
+    getPriceHistory,
+    getAllStocks,
+    getStocksByHoldingDuration,
+    getUserHeldStocksByDuration,
     fetchRecentPriceHistory
 };

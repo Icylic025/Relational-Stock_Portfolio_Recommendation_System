@@ -140,13 +140,74 @@ router.get('/holding', async (req, res) => {
 
 router.put('/holding', async (req, res) => {
     const { email, ticker, add } = req.body;
+    console.log('PUT /holding - email:', email, 'ticker:', ticker, 'add:', add);
     let result = false;
     if (add) {
         result = await appService.addHolding(email, ticker);
     } else {
         result = await appService.delHolding(email, ticker);
     }
+    console.log('PUT /holding - result:', result);
     res.json({ success: result });
+});
+
+// Get all stocks held by a specific user
+router.get('/user-held-stocks/:email', async (req, res) => {
+    try {
+        const { email } = req.params;
+        const stocks = await appService.getUserHeldStocks(email);
+        res.json({ success: true, data: stocks });
+    } catch (error) {
+        console.error('Error fetching user held stocks:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get price history for a specific stock
+router.get('/price-history/:ticker', async (req, res) => {
+    try {
+        const { ticker } = req.params;
+        const priceHistory = await appService.getPriceHistory(ticker);
+        res.json({ success: true, data: priceHistory });
+    } catch (error) {
+        console.error('Error fetching price history:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get all available stocks
+router.get('/stocks', async (req, res) => {
+    try {
+        const stocks = await appService.getAllStocks();
+        res.json({ success: true, data: stocks });
+    } catch (error) {
+        console.error('Error fetching stocks:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get stocks filtered by holding duration (HAVING clause query)
+router.get('/stocks-by-holding-duration/:duration', async (req, res) => {
+    try {
+        const { duration } = req.params;
+        const stocks = await appService.getStocksByHoldingDuration(duration);
+        res.json({ success: true, data: stocks });
+    } catch (error) {
+        console.error('Error fetching stocks by holding duration:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get user's held stocks filtered by holding duration (HAVING clause query)
+router.get('/user-held-stocks/:email/duration/:duration', async (req, res) => {
+    try {
+        const { email, duration } = req.params;
+        const stocks = await appService.getUserHeldStocksByDuration(email, duration);
+        res.json({ success: true, data: stocks });
+    } catch (error) {
+        console.error('Error fetching user held stocks by duration:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 router.post('/price-history', async (req, res) => {

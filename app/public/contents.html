@@ -6,7 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- Link to the external CSS stylesheet. Uncomment if you wish to customize or add styling. -->
-    <link rel="stylesheet" href="styles.css">  
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Chart.js for price history graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
 <!--    <button id="initDB">initialize</button>-->
     <title>Database Application content</title>
 </head>
@@ -81,9 +86,32 @@
         </div>
     </div>
 
-    <div id="selectedStock" style="padding-left: 10px"></div>
+    <!-- Stock Price History Chart -->
+    <div style="width: 90%; margin: 20px auto;">
+        <h3 id="chartTitle" style="text-align: center;">Portfolio Price History</h3>
 
-    <img src="../sample image.jpg" class=imgcenter>
+        <!-- Holding Duration Filter / Back to Portfolio Button (toggled based on view) -->
+        <div id="portfolioControls" style="text-align: center; margin: 15px 0;">
+            <!-- This will be dynamically updated by JavaScript -->
+            <div id="holdingDurationFilter">
+                <label for="durationSelect" style="margin-right: 10px; font-weight: bold;">Filter by holding duration:</label>
+                <select id="durationSelect" style="padding: 5px 10px;">
+                    <option value="" selected>All holdings (no filter)</option>
+                    <option value="day">Held at least 1 day</option>
+                    <option value="week">Held at least 1 week</option>
+                    <option value="month">Held at least 1 month</option>
+                    <option value="year">Held at least 1 year</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="selectedStock" style="padding-left: 10px">
+            <!-- Stock details will be added here when a stock is selected -->
+        </div>
+
+        <p id="chartMessage" style="text-align: center; margin-top: 10px;">Please login to view your portfolio</p>
+        <canvas id="priceChart"></canvas>
+    </div>
 
     <!-- buy, sell, hold  OR  rate 0~7 -->
     Recommendation: <div id="recommendation"></div> <br>

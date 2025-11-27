@@ -37,6 +37,15 @@ async function initDB() {
 }
 
 
+//////////////////////////// Stock Graph State Management //////////////////////////////////////
+let selectedStock = null;
+let priceChart = null;
+let currentUserEmail = null; // This will be set by the login component
+const CHART_COLORS = [
+    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+    '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+];
+
 //////////////////////////// Handler when stock is selected //////////////////////////////////////
 let selectedTicker = "";
 let selectedTickerFull = [];
@@ -44,17 +53,69 @@ let selectedTickerFull = [];
 async function handleStockSelection(symbol) {
     selectedTicker = symbol[0];
     selectedTickerFull = symbol;
+
+    // Hide the duration filter and show the back button
+    const portfolioControls = document.getElementById("portfolioControls");
+    if (portfolioControls) {
+        portfolioControls.innerHTML = '<button id="clearStockSelection" style="padding: 8px 20px; font-size: 14px;">Back to Portfolio</button>';
+    }
+
     const container = document.getElementById("selectedStock");
-    container.innerHTML = "";
+    container.innerHTML = '';
 
     //////////////////////////// Render stock attributes here //////////////////////////////////////
     renderTitleRow(container);
     await renderStockDetail(container);
 
     //////////////////////////// Calls render graph here //////////////////////////////////////
+    // Update the graph to show this specific stock
+    if (selectedTicker) {
+        selectedStock = selectedTicker;
+        updateChartForStock(selectedTicker);
+    }
 
+    // Add listener for clear button
+    const clearBtn = document.getElementById("clearStockSelection");
+    if (clearBtn) {
+        clearBtn.addEventListener("click", clearStockSelection);
+    }
 
     /////////////////////////// Renders recommendation here //////////////////////////////////
+}
+
+function clearStockSelection() {
+    selectedTicker = "";
+    selectedTickerFull = [];
+    selectedStock = null;
+
+    // Clear stock details
+    const container = document.getElementById("selectedStock");
+    container.innerHTML = '';
+
+    // Show the duration filter again and hide the back button
+    const portfolioControls = document.getElementById("portfolioControls");
+    if (portfolioControls) {
+        portfolioControls.innerHTML = `
+            <div id="holdingDurationFilter">
+                <label for="durationSelect" style="margin-right: 10px; font-weight: bold;">Filter by holding duration:</label>
+                <select id="durationSelect" style="padding: 5px 10px;">
+                    <option value="" selected>All holdings (no filter)</option>
+                    <option value="day">Held at least 1 day</option>
+                    <option value="week">Held at least 1 week</option>
+                    <option value="month">Held at least 1 month</option>
+                    <option value="year">Held at least 1 year</option>
+                </select>
+            </div>
+        `;
+
+        // Re-add the event listener for the newly created dropdown
+        addHoldingDurationFilterListener();
+    }
+
+    // Return to portfolio view (no filter initially)
+    if (currentUserEmail) {
+        updateChartForPortfolio();
+    }
 }
 
 function renderTitleRow(container) {
@@ -377,6 +438,9 @@ async function loadSetting() {
         document.getElementById("settingExchange").dispatchEvent(new Event("change"));
         await refreshMenu();
     }
+
+    // Trigger graph to load user's portfolio
+    onUserLogin(username);
 }
 
 async function loadSettingDropdown() {
@@ -523,6 +587,7 @@ function addHoldListener() {
     });
 
     btn.addEventListener('click', async() => {
+        const action = btn.textContent === "Hold" ? "added to" : "removed from";
         const response = await fetch('/holding', {
             method: 'PUT',
             headers: {
@@ -535,7 +600,20 @@ function addHoldListener() {
             })
         });
         await refreshMenu();
-        handleStockSelection(selectedTickerFull);
+
+        // Navigate back to portfolio to see updated holdings in the overlaid graph
+        clearStockSelection();
+
+        // Show a brief confirmation message
+        const chartMessage = document.getElementById('chartMessage');
+        if (chartMessage) {
+            chartMessage.textContent = `${selectedTicker} ${action} your portfolio`;
+            setTimeout(() => {
+                if (chartMessage.textContent === `${selectedTicker} ${action} your portfolio`) {
+                    chartMessage.textContent = '';
+                }
+            }, 3000);
+        }
     });
 }
 
@@ -705,6 +783,249 @@ function validateReportFields() {
     });
 }
 
+
+//////////////////////////// Stock Graph Functions //////////////////////////////////////
+
+// Update chart to show portfolio (all held stocks)
+async function updateChartForPortfolio(durationFilter = null) {
+    const chartMessage = document.getElementById('chartMessage');
+    const chartTitle = document.getElementById('chartTitle');
+
+
+    if (!currentUserEmail) {
+        if (chartMessage) chartMessage.textContent = 'Please login to view your portfolio';
+        if (priceChart) {
+            priceChart.destroy();
+            priceChart = null;
+        }
+        return;
+    }
+
+    try {
+        // Get user's held stocks - either filtered by duration or all
+        let response, data;
+        if (durationFilter) {
+            const url = `/user-held-stocks/${encodeURIComponent(currentUserEmail)}/duration/${durationFilter}`;
+           // console.log("Fetching filtered stocks from:", url);
+            response = await fetch(url);
+        } else {
+            const url = `/user-held-stocks/${encodeURIComponent(currentUserEmail)}`;
+            // console.log("Fetching all stocks from:", url);
+            response = await fetch(url);
+        }
+        data = await response.json();
+        // console.log("Received data:", data);
+
+        if (!data.success || data.data.length === 0) {
+            const filterText = durationFilter ? ` matching the selected duration filter` : '';
+            if (chartMessage) chartMessage.textContent = `You do not hold any stocks${filterText}`;
+            if (chartTitle) {
+                const durationLabels = {
+                    'day': ' (Held >= 1 day)',
+                    'week': ' (Held >= 1 week)',
+                    'month': ' (Held >= 1 month)',
+                    'year': ' (Held >= 1 year)'
+                };
+                chartTitle.textContent = `Portfolio Price History${durationFilter ? durationLabels[durationFilter] : ''}`;
+            }
+            if (priceChart) {
+                priceChart.destroy();
+                priceChart = null;
+            }
+            return;
+        }
+
+        // Fetch price history for all held stocks
+        const priceDataPromises = data.data.map(stock =>
+            fetch(`/price-history/${stock.ticker}`).then(res => res.json())
+        );
+        const priceDataResults = await Promise.all(priceDataPromises);
+
+        // Prepare datasets for chart
+        const datasets = [];
+        priceDataResults.forEach((result, index) => {
+            if (result.success && result.data.length > 0) {
+                const stock = data.data[index];
+                datasets.push({
+                    label: stock.ticker,
+                    data: result.data.map(point => ({
+                        x: new Date(point.date),
+                        y: point.close
+                    })),
+                    borderColor: CHART_COLORS[index % CHART_COLORS.length],
+                    backgroundColor: 'transparent',
+                    tension: 0.1
+                });
+            }
+        });
+
+        // Update title based on filter
+        if (chartTitle) {
+            const durationLabels = {
+                'day': ' (Held >= 1 day)',
+                'week': ' (Held >= 1 week)',
+                'month': ' (Held >= 1 month)',
+                'year': ' (Held >= 1 year)'
+            };
+            chartTitle.textContent = `Portfolio Price History${durationFilter ? durationLabels[durationFilter] : ''}`;
+        }
+        if (chartMessage) chartMessage.textContent = '';
+        renderChart(datasets);
+
+    } catch (error) {
+        console.error('Error updating portfolio chart:', error);
+        if (chartMessage) chartMessage.textContent = 'Error loading portfolio data';
+    }
+}
+
+// Update chart to show single stock
+async function updateChartForStock(ticker) {
+    const chartMessage = document.getElementById('chartMessage');
+    const chartTitle = document.getElementById('chartTitle');
+
+    try {
+        const response = await fetch(`/price-history/${ticker}`);
+        const data = await response.json();
+
+        if (!data.success || data.data.length === 0) {
+            if (chartMessage) chartMessage.textContent = `No price history data for ${ticker}`;
+            if (priceChart) {
+                priceChart.destroy();
+                priceChart = null;
+            }
+            return;
+        }
+
+        const dataset = {
+            label: ticker,
+            data: data.data.map(point => ({
+                x: new Date(point.date),
+                y: point.close
+            })),
+            borderColor: CHART_COLORS[0],
+            backgroundColor: 'transparent',
+            tension: 0.1
+        };
+
+        if (chartTitle) chartTitle.textContent = `${ticker} Price History`;
+        if (chartMessage) chartMessage.textContent = '';
+        renderChart([dataset]);
+
+    } catch (error) {
+        console.error('Error updating stock chart:', error);
+        if (chartMessage) chartMessage.textContent = 'Error loading stock data';
+    }
+}
+
+// Render the chart with given datasets
+function renderChart(datasets) {
+    const ctx = document.getElementById('priceChart');
+    if (!ctx) return;
+
+    // Destroy existing chart
+    if (priceChart) {
+        priceChart.destroy();
+    }
+
+    // Create new chart
+    priceChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'day'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Date',
+                        color: '#ffffff'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#404040'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Price (USD)',
+                        color: '#ffffff'
+                    },
+                    ticks: {
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: '#404040'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#ffffff'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Function to be called by login component when user logs in
+function onUserLogin(email) {
+    currentUserEmail = email;
+    selectedStock = null;
+    updateChartForPortfolio();
+}
+
+// Function to be called by login component when user logs out
+function onUserLogout() {
+    currentUserEmail = null;
+    selectedStock = null;
+    if (priceChart) {
+        priceChart.destroy();
+        priceChart = null;
+    }
+    const chartMessage = document.getElementById('chartMessage');
+    if (chartMessage) chartMessage.textContent = 'Please login to view your portfolio';
+}
+
+//////////////////////////// Holding Duration Filter Logic //////////////////////////////////////
+function addHoldingDurationFilterListener() {
+    const durationSelect = document.getElementById("durationSelect");
+    if (!durationSelect) return;
+
+    durationSelect.addEventListener("change", () => {
+        const duration = durationSelect.value;
+
+        /*
+        console.log("Duration filter changed to:", duration);
+        console.log("currentUserEmail:", currentUserEmail);
+        console.log("selectedStock:", selectedStock);
+        console.log("selectedTicker:", selectedTicker);
+        */
+       
+        // Only update chart if user is logged in and not viewing a specific stock
+        if (currentUserEmail && !selectedTicker) {
+            console.log("Updating chart with duration:", duration);
+            if (duration) {
+                updateChartForPortfolio(duration);
+            } else {
+                // If empty value selected, show all holdings
+                updateChartForPortfolio();
+            }
+        } else {
+            console.log("Not updating chart - conditions not met");
+        }
+    });
+}
+
 // ---------------------------------------------------------------
 // Initializes the webpage functionalities.
 // Add or remove event listeners based on the desired functionalities.
@@ -715,4 +1036,5 @@ window.onload = function() {
     addSettingListener();
     addHoldListener();
     addInsertReportListener();
+    addHoldingDurationFilterListener();
 };

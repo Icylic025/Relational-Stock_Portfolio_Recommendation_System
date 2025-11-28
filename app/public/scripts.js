@@ -849,10 +849,12 @@ async function updateChartForPortfolio(durationFilter = null) {
         }
 
         // Fetch price history for all held stocks
-        const priceDataPromises = data.data.map(stock =>
-            fetch(`/price-history/${stock.ticker}`).then(res => res.json())
-        );
-        const priceDataResults = await Promise.all(priceDataPromises);
+        const priceDataResults = [];
+        for (const stock of data.data) {
+            const res = await fetch(`/price-history/${stock.ticker}`);
+            const json = await res.json();
+            priceDataResults.push(json);
+        }
 
         // Prepare datasets for chart
         const datasets = [];

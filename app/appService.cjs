@@ -99,49 +99,6 @@ async function testOracleConnection() {
     });
 }
 
-async function fetchDemotableFromDb() {
-    return await withOracleDB(async (connection) => {
-        const result = await connection.execute('SELECT * FROM DEMOTABLE');
-        return result.rows;
-    }).catch(() => {
-        return [];
-    });
-}
-
-async function initiateDemotable() {
-    return await withOracleDB(async (connection) => {
-        try {
-            await connection.execute(`DROP TABLE DEMOTABLE`);
-        } catch(err) {
-            console.log('Table might not exist, proceeding to create...');
-        }
-
-        const result = await connection.execute(`
-            CREATE TABLE DEMOTABLE (
-                id NUMBER PRIMARY KEY,
-                name VARCHAR2(20)
-            )
-        `);
-        return true;
-    }).catch(() => {
-        return false;
-    });
-}
-
-async function insertDemotable(id, name) {
-    return await withOracleDB(async (connection) => {
-        const result = await connection.execute(
-            `INSERT INTO DEMOTABLE (id, name) VALUES (:id, :name)`,
-            [id, name],
-            { autoCommit: true }
-        );
-
-        return result.rowsAffected && result.rowsAffected > 0;
-    }).catch(() => {
-        return false;
-    });
-}
-
 async function insertAnalyst(ticker, rating) {
     return await withOracleDB(async (connection) => {
         const timestamp = await connection.execute(
@@ -379,29 +336,6 @@ async function getRecommendation7(ticker) {
     });
 }
 
-async function updateNameDemotable(oldName, newName) {
-    return await withOracleDB(async (connection) => {
-        const result = await connection.execute(
-            `UPDATE DEMOTABLE SET name=:newName where name=:oldName`,
-            [newName, oldName],
-            { autoCommit: true }
-        );
-
-        return result.rowsAffected && result.rowsAffected > 0;
-    }).catch(() => {
-        return false;
-    });
-}
-
-async function countDemotable() {
-    return await withOracleDB(async (connection) => {
-        const result = await connection.execute('SELECT Count(*) FROM DEMOTABLE');
-        return result.rows[0][0];
-    }).catch(() => {
-        return -1;
-    });
-}
-
 async function initiateDB() {
     return await withOracleDB(async (connection) => {
         try {
@@ -410,6 +344,15 @@ async function initiateDB() {
         try {
             await connection.execute('DROP TABLE Users CASCADE CONSTRAINTS');
         } catch (err) { console.log('Users might not exist'); }
+        try {
+            await connection.execute('DROP TABLE Derives CASCADE CONSTRAINTS');
+        } catch (err) { console.log('Derives might not exist'); }
+        try {
+            await connection.execute('DROP TABLE Contributes CASCADE CONSTRAINTS');
+        } catch (err) { console.log('Contributes might not exist'); }
+        try {
+            await connection.execute('DROP TABLE AnalystRating CASCADE CONSTRAINTS');
+        } catch (err) { console.log('AnalystRating might not exist'); }
         try {
             await connection.execute('DROP TABLE PriceHistory CASCADE CONSTRAINTS');
         } catch (err) { console.log('PriceHistory might not exist'); }
@@ -490,6 +433,30 @@ async function initiateDB() {
                 FOREIGN KEY (email) REFERENCES Users(email) ON DELETE CASCADE,
                 FOREIGN KEY (ticker) REFERENCES Stock(ticker) ON DELETE CASCADE,
                 PRIMARY KEY (ticker, email)
+            )`);
+        await connection.execute(`
+            CREATE TABLE AnalystRating(
+                analystRatingID INT PRIMARY KEY,
+                ticker VARCHAR(255),
+                recommendation NUMBER,
+                timestamp DATE,
+                FOREIGN KEY (ticker) REFERENCES Stock(ticker) ON DELETE CASCADE
+            )`);
+        await connection.execute(`
+            CREATE TABLE Contributes(
+                reportID VARCHAR(255),
+                analystRatingID INT,
+                FOREIGN KEY (reportID) REFERENCES Report(reportID) ON DELETE CASCADE,
+                FOREIGN KEY (analystRatingID) REFERENCES AnalystRating(analystRatingID) ON DELETE CASCADE,
+                PRIMARY KEY(reportID, analystRatingID)
+            )`);
+        await connection.execute(`
+            CREATE TABLE Derives(
+                priceHistoryID INT,
+                analystRatingID INT,
+                FOREIGN KEY (priceHistoryID) REFERENCES PriceHistory(priceHistoryID) ON DELETE CASCADE,
+                FOREIGN KEY (analystRatingID) REFERENCES AnalystRating(analystRatingID) ON DELETE CASCADE,
+                PRIMARY KEY(priceHistoryID, analystRatingID)
             )`);
         return true;
     }).catch((err) => {

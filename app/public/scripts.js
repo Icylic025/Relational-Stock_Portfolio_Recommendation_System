@@ -111,6 +111,7 @@ function clearStockSelection() {
     // Clear stock details
     const container = document.getElementById("selectedStock");
     container.innerHTML = '';
+    document.getElementById("stockRelatedOperation").hidden = true;
 
     // Show the duration filter again and hide the back button
     const portfolioControls = document.getElementById("portfolioControls");
@@ -458,6 +459,7 @@ async function loadSetting() {
 
     // Trigger graph to load user's portfolio
     onUserLogin(username);
+    clearStockSelection();
 }
 
 async function loadSettingDropdown() {
@@ -553,6 +555,7 @@ async function handleDeleteUser(e) {
         msg.innerText = "Successfully deleted!";
         await new Promise(resolve => setTimeout(resolve, 1500));
         resetSettingPopup();
+        clearStockSelection();
         await refreshMenu();
     } else {
         msg.innerText = "Error deleting user";
@@ -595,7 +598,7 @@ function addHoldListener() {
                 add: btn.textContent === "Hold"
             })
         });
-        btn.hidden = true;
+        document.getElementById("stockRelatedOperation").hidden = true;
         await refreshMenu();
 
         // Navigate back to portfolio to see updated holdings in the overlaid graph
@@ -616,7 +619,7 @@ function addHoldListener() {
 
 async function renderHoldOnSelect() {
     const btn = document.getElementById("holdButton");
-    btn.hidden = false;
+    document.getElementById("stockRelatedOperation").hidden = false;
 
     if (username) {
         btn.disabled = false;
@@ -627,6 +630,7 @@ async function renderHoldOnSelect() {
         const responseData = await response.json();
         responseData.exist ? btn.textContent = "Unhold" : btn.textContent = "Hold";
     } else if (username === "") {
+        btn.textContent = "Hold";
         btn.disabled = true;
         btn.style.cursor = "not-allowed";
         document.getElementById("holdButton").dataset.tooltip = "Please login";
@@ -640,10 +644,6 @@ function addInsertReportListener() {
     const cancel = document.getElementById("reportCancel");
     const submit = document.getElementById("reportSubmit");
     if (!btn || !cancel || !submit) return;
-
-    document.addEventListener('click', () => {
-        if (selectedTicker) btn.hidden = false;
-    });
 
     btn.addEventListener("click", () => {
         resetReportPopup();
@@ -849,10 +849,12 @@ async function updateChartForPortfolio(durationFilter = null) {
         }
 
         // Fetch price history for all held stocks
-        const priceDataPromises = data.data.map(stock =>
-            fetch(`/price-history/${stock.ticker}`).then(res => res.json())
-        );
-        const priceDataResults = await Promise.all(priceDataPromises);
+        const priceDataResults = [];
+        for (const stock of data.data) {
+            const res = await fetch(`/price-history/${stock.ticker}`);
+            const json = await res.json();
+            priceDataResults.push(json);
+        }
 
         // Prepare datasets for chart
         const datasets = [];
@@ -1036,7 +1038,7 @@ function addHoldingDurationFilterListener() {
 // Initializes the webpage functionalities.
 // Add or remove event listeners based on the desired functionalities.
 window.onload = function() {
-    //document.getElementById("initDB").addEventListener("click", initDB);
+    // document.getElementById("initDB").addEventListener("click", initDB);
     populateMenu({preferredIndustry: "", display: false});
     addSearchBarListener();
     addSettingListener();

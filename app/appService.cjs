@@ -655,6 +655,30 @@ async function getUserHeldStocksByDuration(email, durationFilter) {
     });
 }
 
+// Join query: Get all users who hold a specific stock ticker
+// Joins Holds and Stock tables using WHERE clause, user provides ticker in WHERE clause
+async function getUsersHoldingStock(ticker) {
+    return await withOracleDB(async (connection) => {
+        const result = await connection.execute(
+            `SELECT h.email, h.holdTime, s.name, s.industry, s.exchange
+             FROM Holds h, Stock s
+             WHERE h.ticker = s.ticker AND h.ticker = :1
+             ORDER BY h.holdTime DESC`,
+            [ticker]
+        );
+        return result.rows.map(row => ({
+            email: row[0],
+            holdTime: row[1],
+            stockName: row[2],
+            industry: row[3],
+            exchange: row[4]
+        }));
+    }).catch((err) => {
+        console.error('Error in getUsersHoldingStock:', err);
+        return [];
+    });
+}
+
 // other modules can check to make sure connection is connected before proceeding
 const poolReady = initializeConnectionPool();
 module.exports = {
@@ -684,5 +708,6 @@ module.exports = {
     getPriceHistory,
     getAllStocks,
     getStocksByHoldingDuration,
-    getUserHeldStocksByDuration
+    getUserHeldStocksByDuration,
+    getUsersHoldingStock
 };

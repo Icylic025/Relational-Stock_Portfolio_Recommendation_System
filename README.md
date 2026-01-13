@@ -1,6 +1,4 @@
-Our project provides recommendations to people on which stocks to sell or buy. People
-using this application would be able to make more informed decisions when
-manipulating their stock market portfolio.
+This project implements a database-backed stock market decision support system that assists users in making informed buy and sell decisions. The system stores and manages portfolio and market data in a relational database, enabling structured queries and analytical operations that support investment decision-making.
 
 ## Setup
 
